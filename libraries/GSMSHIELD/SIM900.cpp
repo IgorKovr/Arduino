@@ -315,16 +315,25 @@ void SIMCOM900::SimpleRead()
 void SIMCOM900::SimpleWrite(char *comm)
 {
 	_cell.print(comm);
+#ifdef DEBUG_ON
+    Serial.println(comm);
+#endif
 }
 
 void SIMCOM900::SimpleWrite(const char *comm)
 {
 	_cell.print(comm);
+#ifdef DEBUG_ON
+    Serial.println(comm);
+#endif
 }
 
 void SIMCOM900::SimpleWrite(int comm)
 {
 	_cell.print(comm);
+#ifdef DEBUG_ON
+    Serial.println(comm);
+#endif
 }
 
 void SIMCOM900::SimpleWrite(const __FlashStringHelper *pgmstr)
@@ -361,6 +370,20 @@ void SIMCOM900::WhileSimpleRead()
 			Serial.print(datain);
 		}
 	}
+}
+
+void SIMCOM900::WhileSimpleReadToStr(char data[])
+{
+	int i= 0;
+    char readChar;
+	while(_cell.available()>0 ){ //&& (i < sizeof(data))
+		readChar=_cell.read();
+		if(readChar>0){
+            data[i]=readChar;
+            i++;
+		}
+	}
+    data[i] = '\0';
 }
 
 //---------------------------------------------

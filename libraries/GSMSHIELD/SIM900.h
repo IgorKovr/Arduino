@@ -35,6 +35,7 @@ class SIMCOM900 : public virtual GSM
     void SimpleWriteln(char const *comm);
 	void SimpleWriteln(const __FlashStringHelper *pgmstr);
     void SimpleWriteln(int comm);
+    void WhileSimpleReadToStr(char data[]);
 };
 
 extern SIMCOM900 gsm;

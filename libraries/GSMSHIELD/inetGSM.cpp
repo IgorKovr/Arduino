@@ -2,8 +2,9 @@
 #define _GSM_CONNECTION_TOUT_ 5
 #define _TCP_CONNECTION_TOUT_ 20
 #define _GSM_DATA_TOUT_ 10
+#define DEBUG_ON 1
 
-int InetGSM::httpGET(const char* server, int port, const char* path, char* result, int resultlength)
+int InetGSM::httpGET(const char* server, int port, const char* path, const char*header, char* result, int resultlength)
 {
   boolean connected=false;
   int n_of_at=0;
@@ -30,15 +31,18 @@ int InetGSM::httpGET(const char* server, int port, const char* path, char* resul
 	}
   }
 
-  if(!connected) return 0;
-	
+    if(!connected) return 0;
+
   gsm.SimpleWrite("GET ");
   gsm.SimpleWrite(path);
-  gsm.SimpleWrite(" HTTP/1.0\nHost: ");
+  gsm.SimpleWrite(" HTTP/1.1\nHost: ");
   gsm.SimpleWrite(server);
   gsm.SimpleWrite("\n");
   gsm.SimpleWrite("User-Agent: Arduino");
-  gsm.SimpleWrite("\n\n");
+//  gsm.SimpleWrite("\n\n");
+    gsm.SimpleWrite("\n");
+    gsm.SimpleWrite(header);
+    gsm.SimpleWrite("\n\n");
   gsm.SimpleWrite(end_c);
 
   switch(gsm.WaitResp(10000, 100, "SEND")){
@@ -52,69 +56,220 @@ int InetGSM::httpGET(const char* server, int port, const char* path, char* resul
 
   	#ifdef DEBUG_ON
 		Serial.println("DB:SENT");
+        Serial.println(result);
 	#endif	
   int res= gsm.read(result, resultlength);
 
+    if (!res)
+//    Serial.println("can't read data");
+
   //gsm.disconnectTCP();
-  
+//        disconnectTCP();
+
   //int res=1;
   return res;
 }
 
+int InetGSM::httpPUT(const char* server, int port, const char* path, char* parameters, const char*header, char* result, int resultlength)
+{
+    boolean connected=false;
+    int n_of_at=0;
+    char itoaBuffer[8];
+    int num_char;
+    char end_c[2];
+    end_c[0]=0x1a;
+    end_c[1]='\0';
+
+    while(n_of_at<3) {
+        if(!connectTCP(server, port)) {
+#ifdef DEBUG_ON
+            Serial.println("DB:NOT CONN");
+#endif
+            n_of_at++;
+        } else {
+            connected=true;
+            n_of_at=3;
+        }
+    }
+
+    if(!connected) return 0;
+
+    gsm.SimpleWrite("PUT ");
+    gsm.SimpleWrite(path);
+    gsm.SimpleWrite(" HTTP/1.1\r\nHost: ");
+    gsm.SimpleWrite(server);
+    gsm.SimpleWrite("\r\n");
+    gsm.SimpleWrite("User-Agent: Arduino\r\n");
+    gsm.SimpleWrite("Content-Type: application/x-www-form-urlencoded\r\n");
+    gsm.SimpleWrite("X-ApiKey: oeyxzwo2JWX3mnKFA9JuzCZ5mJSF8vB4flLfAW0hUYEXsh3O\r\n");
+    gsm.SimpleWrite("Content-Length: ");
+    itoa(strlen(parameters),itoaBuffer,10);
+    gsm.SimpleWrite(itoaBuffer);
+    gsm.SimpleWrite("\r\n\r\n");
+    gsm.SimpleWrite(parameters);
+    gsm.SimpleWrite("\r\n\r\n");
+    gsm.SimpleWrite(end_c);
+
+    switch(gsm.WaitResp(10000, 10, "SEND OK")) {
+        case RX_TMOUT_ERR:
+            return 0;
+            break;
+        case RX_FINISHED_STR_NOT_RECV:
+            return 0;
+            break;
+    }
+
+    delay(50);
+#ifdef DEBUG_ON
+    Serial.println("DB:SENT");
+#endif
+
+    int res= gsm.read(result, resultlength);
+    //gsm.disconnectTCP();
+    return res;
+}
+
+int InetGSM::httpPOSTWithFile(const char* server, int port, const char* path, const char* parameters, File myFile,  char* result, int resultlength){
+    boolean connected=false;
+    int n_of_at=0;
+    char itoaBuffer[8];
+    int num_char;
+    char end_c[2];
+    end_c[0]=0x1a;
+    end_c[1]='\0';
+
+    while(n_of_at<3) {
+        if(!connectTCP(server, port)) {
+#ifdef DEBUG_ON
+            Serial.println("DB:NOT CONN");
+#endif
+            n_of_at++;
+        } else {
+            connected=true;
+            n_of_at=3;
+        }
+    }
+
+    if(!connected) return 0;
+
+    gsm.SimpleWrite("POST /upload?upload_progress_id=12344");
+    gsm.SimpleWrite(path);
+    gsm.SimpleWrite(" HTTP/1.1\r\nHost: ");
+    gsm.SimpleWrite(server);
+    gsm.SimpleWrite("\r\n");
+    gsm.SimpleWrite("User-Agent: Arduino\r\n");
+    gsm.SimpleWrite("Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryePkpFF7tjBAqx29L\r\n");
+    gsm.SimpleWrite("X-ApiKey: oeyxzwo2JWX3mnKFA9JuzCZ5mJSF8vB4flLfAW0hUYEXsh3O\r\n");
+    gsm.SimpleWrite("Content-Length: ");
+    itoa(strlen(parameters),itoaBuffer,10);
+
+    ///
+    //gsm.SimpleWrite(itoaBuffer);
+
+        gsm.SimpleWrite(55000);
+
+    gsm.SimpleWrite("\r\n\r\n");
+    gsm.SimpleWrite(parameters);
+    gsm.SimpleWrite("\r\n\r\n");
+    gsm.SimpleWrite(end_c);
+
+    if (myFile) {
+        gsm.SimpleWrite("------WebKitFormBoundaryePkpFF7tjBAqx29L \n Content-Disposition: form-data; name=""MAX_FILE_SIZE"" \n\n100000\n");
+        gsm.SimpleWrite("------WebKitFormBoundaryePkpFF7tjBAqx29L \n Content-Disposition: form-data; name=""uploadFile""; filename=""1.jpg""\n");
+        gsm.SimpleWrite("Content-Type: application/x-object\n\n");
+
+        Serial.println("Uploading 1.jpg:");
+        // read from the file until there's nothing else in it:
+        while (myFile.available()) {
+            gsm.SimpleWrite(myFile.read());
+        }
+        // close the file:
+        myFile.close();
+        gsm.SimpleWrite("\n\n------WebKitFormBoundaryePkpFF7tjBAqx29L--");
+
+        Serial.println("Uploaded 1.jpg:");
+    }
+    else {
+        // if the file didn't open, print an error:
+        Serial.println("error opening File");
+    }
+
+    switch(gsm.WaitResp(10000, 10, "SEND OK")) {
+        case RX_TMOUT_ERR:
+            return 0;
+            break;
+        case RX_FINISHED_STR_NOT_RECV:
+            return 0;
+            break;
+    }
+
+    delay(50);
+#ifdef DEBUG_ON
+    Serial.println("DB:SENT");
+#endif
+
+    int res= gsm.read(result, resultlength);
+    //gsm.disconnectTCP();
+    return res;
+}
+
 int InetGSM::httpPOST(const char* server, int port, const char* path, const char* parameters, char* result, int resultlength)
 {
-  boolean connected=false;
-  int n_of_at=0;
-  char itoaBuffer[8];
-  int num_char;
-  char end_c[2];
-  end_c[0]=0x1a;
-  end_c[1]='\0';
+    boolean connected=false;
+    int n_of_at=0;
+    char itoaBuffer[8];
+    int num_char;
+    char end_c[2];
+    end_c[0]=0x1a;
+    end_c[1]='\0';
 
-  while(n_of_at<3){
-	  if(!connectTCP(server, port)){
-	  	#ifdef DEBUG_ON
-			Serial.println("DB:NOT CONN");
-		#endif	
-	    	n_of_at++;
-	  }
-	  else{
-		connected=true;
-		n_of_at=3;
-	}
-  }
+    while(n_of_at<3) {
+        if(!connectTCP(server, port)) {
+#ifdef DEBUG_ON
+            Serial.println("DB:NOT CONN");
+#endif
+            n_of_at++;
+        } else {
+            connected=true;
+            n_of_at=3;
+        }
+    }
 
-  if(!connected) return 0;
+    if(!connected) return 0;
 
-  gsm.SimpleWrite("POST ");
-  gsm.SimpleWrite(path);
-  gsm.SimpleWrite(" HTTP/1.1\nHost: ");
-  gsm.SimpleWrite(server);
-  gsm.SimpleWrite("\n");
-  gsm.SimpleWrite("User-Agent: Arduino\n");
-  gsm.SimpleWrite("Content-Length: ");
-  itoa(strlen(parameters),itoaBuffer,10);  
-  gsm.SimpleWrite("\n\n");
-  gsm.SimpleWrite(parameters);
-  gsm.SimpleWrite("\n\n");
-  gsm.SimpleWrite(end_c);
- 
-  switch(gsm.WaitResp(10000, 100, "SEND OK")){
-	case RX_TMOUT_ERR: 
-		return 0;
-	break;
-	case RX_FINISHED_STR_NOT_RECV: 
-		return 0; 
-	break;
-  }
-delay(5000);
-	#ifdef DEBUG_ON
-		Serial.println("DB:SENT");
-	#endif	
-  int res= gsm.read(result, resultlength);
+    gsm.SimpleWrite("POST ");
+    gsm.SimpleWrite(path);
+    gsm.SimpleWrite(" HTTP/1.1\r\nHost: ");
+    gsm.SimpleWrite(server);
+    gsm.SimpleWrite("\r\n");
+    gsm.SimpleWrite("User-Agent: Arduino\r\n");
+    gsm.SimpleWrite("Content-Type: application/x-www-form-urlencoded\r\n");
+    gsm.SimpleWrite("X-ApiKey: oeyxzwo2JWX3mnKFA9JuzCZ5mJSF8vB4flLfAW0hUYEXsh3O\r\n");
+    gsm.SimpleWrite("Content-Length: ");
+    itoa(strlen(parameters),itoaBuffer,10);
+    gsm.SimpleWrite(itoaBuffer);
+    gsm.SimpleWrite("\r\n\r\n");
+    gsm.SimpleWrite(parameters);
+    gsm.SimpleWrite("\r\n\r\n");
+    gsm.SimpleWrite(end_c);
 
-  //gsm.disconnectTCP();
-  return res;
+    switch(gsm.WaitResp(10000, 10, "SEND OK")) {
+        case RX_TMOUT_ERR:
+            return 0;
+            break;
+        case RX_FINISHED_STR_NOT_RECV:
+            return 0;
+            break;
+    }
+
+    delay(50);
+#ifdef DEBUG_ON
+    Serial.println("DB:SENT");
+#endif
+
+    int res= gsm.read(result, resultlength);
+    //gsm.disconnectTCP();
+    return res;
 }
 /*
 int InetGSM::tweet(const char* token, const char* msg)
@@ -130,42 +285,174 @@ int InetGSM::tweet(const char* token, const char* msg)
 
 int InetGSM::openmail(char* server, char* loginbase64, char* passbase64, char* from, char* to, char* subj)
 {
-	/*
-	  if (!gsm.connectTCP(server, 25))
-    	return 0;
-    
-    delay(1000);
-    gsm.read(_buffer, BUFFERSIZE);    
-    gsm.SimpleWrite("HELO\n");
+    boolean connected=false;
+    int n_of_at=0;
+    char end_c[2];
+    end_c[0]=0x1a;
+    end_c[1]='\0';
+
+/// !!! SMTP PORT
+
+    while(n_of_at<3){
+        if(!connectTCP(server, 587)){
+#ifdef DEBUG_ON
+			Serial.println("DB:NOT CONN");
+#endif
+	    	n_of_at++;
+        }
+        else{
+            connected=true;
+            n_of_at=3;
+        }
+    }
+
+    if(!connected) return 0;
+	delay(100);
+    gsm.SimpleWrite("HELO ");  gsm.SimpleWrite(server);  gsm.SimpleWrite("\n");
+	gsm.SimpleWrite(end_c);
+	gsm.WaitResp(5000, 100, "OK");
+	if(!gsm.IsStringReceived("SEND OK"))
+		return 0;
     delay(500);
-    gsm.read(_buffer, BUFFERSIZE);
+	gsm.WaitResp(5000, 100);
+
+	delay(100);
+	gsm.SimpleWriteln("AT+CIPSEND");
+	switch(gsm.WaitResp(5000, 200, ">")){
+		case RX_TMOUT_ERR:
+			return 0;
+			break;
+		case RX_FINISHED_STR_NOT_RECV:
+			return 0;
+			break;
+	}
     gsm.SimpleWrite("AUTH LOGIN\n");
+	gsm.SimpleWrite(end_c);
+	gsm.WaitResp(5000, 100, "OK");
+	if(!gsm.IsStringReceived("OK"))
+		return 0;
     delay(500);
-    gsm.read(_buffer, BUFFERSIZE);
+	gsm.WaitResp(5000, 100);
+
+	delay(100);
+	gsm.SimpleWriteln("AT+CIPSEND");
+	switch(gsm.WaitResp(5000, 200, ">")){
+		case RX_TMOUT_ERR:
+			return 0;
+			break;
+		case RX_FINISHED_STR_NOT_RECV:
+			return 0;
+			break;
+	}
     gsm.SimpleWrite(loginbase64);gsm.SimpleWrite("\n");
+	gsm.SimpleWrite(end_c);
+	gsm.WaitResp(5000, 100, "OK");
+	if(!gsm.IsStringReceived("OK"))
+		return 0;
     delay(500);
-    gsm.read(_buffer, BUFFERSIZE);
+	gsm.WaitResp(5000, 100);
+
+	delay(100);
+	gsm.SimpleWriteln("AT+CIPSEND");
+	switch(gsm.WaitResp(5000, 200, ">")){
+		case RX_TMOUT_ERR:
+			return 0;
+			break;
+		case RX_FINISHED_STR_NOT_RECV:
+			return 0;
+			break;
+	}
     gsm.SimpleWrite(passbase64);gsm.SimpleWrite("\n");
+	gsm.SimpleWrite(end_c);
+	gsm.WaitResp(5000, 100, "OK");
+	if(!gsm.IsStringReceived("OK"))
+		return 0;
     delay(500);
-    gsm.read(_buffer, BUFFERSIZE);
-    gsm.SimpleWrite("MAIL FROM: ");gsm.SimpleWrite(from);gsm.SimpleWrite("\n");
+	gsm.WaitResp(5000, 100);
+
+
+	delay(100);
+	gsm.SimpleWriteln("AT+CIPSEND");
+	switch(gsm.WaitResp(5000, 200, ">")){
+		case RX_TMOUT_ERR:
+			return 0;
+			break;
+		case RX_FINISHED_STR_NOT_RECV:
+			return 0;
+			break;
+	}
+    gsm.SimpleWrite("MAIL From: <");gsm.SimpleWrite(from);gsm.SimpleWrite(">\n");
+	gsm.SimpleWrite(end_c);
+	gsm.WaitResp(5000, 100, "OK");
+	if(!gsm.IsStringReceived("OK"))
+		return 0;
     delay(500);
-    gsm.read(_buffer, BUFFERSIZE);
-    gsm.SimpleWrite("RCPT TO: ");gsm.SimpleWrite(to);gsm.SimpleWrite("\n");
+	gsm.WaitResp(5000, 100, "");
+
+	delay(100);
+	gsm.SimpleWriteln("AT+CIPSEND");
+	switch(gsm.WaitResp(5000, 200, ">")){
+		case RX_TMOUT_ERR:
+			return 0;
+			break;
+		case RX_FINISHED_STR_NOT_RECV:
+			return 0;
+			break;
+	}
+    gsm.SimpleWrite("RCPT TO: <");gsm.SimpleWrite(to);gsm.SimpleWrite(">\n");
+	gsm.SimpleWrite(end_c);
+	gsm.WaitResp(5000, 100, "OK");
+	if(!gsm.IsStringReceived("OK"))
+		return 0;
     delay(500);
-    gsm.read(_buffer, BUFFERSIZE);
+	gsm.WaitResp(5000, 100, "");
+
+    delay(100);
+	gsm.SimpleWriteln("AT+CIPSEND");
+	switch(gsm.WaitResp(5000, 200, ">")){
+		case RX_TMOUT_ERR:
+			return 0;
+			break;
+		case RX_FINISHED_STR_NOT_RECV:
+			return 0;
+			break;
+	}
+    gsm.SimpleWrite("Data\n");
+	gsm.SimpleWrite(end_c);
+	gsm.WaitResp(5000, 100, "OK");
+	if(!gsm.IsStringReceived("OK"))
+		return 0;
+    delay(500);
+	gsm.WaitResp(5000, 100, "");
+
+	delay(100);
+	gsm.SimpleWriteln("AT+CIPSEND");
+	switch(gsm.WaitResp(5000, 200, ">")){
+		case RX_TMOUT_ERR:
+			return 0;
+			break;
+		case RX_FINISHED_STR_NOT_RECV:
+			return 0;
+			break;
+	}
     gsm.SimpleWrite("Subject: ");gsm.SimpleWrite(subj);gsm.SimpleWrite("\n\n");
+
     return 1;
-	*/
 }
+
+
 int InetGSM::closemail()
 {
-	/*
+	char end_c[2];
+	end_c[0]=0x1a;
+	end_c[1]='\0';
+    
 	gsm.SimpleWrite("\n.\n");
-	gsm.disconnectTCP();
+	gsm.SimpleWrite(end_c);
+	disconnectTCP();
 	return 1;
-	*/
 }
+
  
 
 int InetGSM::attachGPRS(char* domain, char* dom1, char* dom2)
@@ -393,40 +680,43 @@ int InetGSM::disconnectTCP()
 
 int InetGSM::connectTCPServer(int port)
 {
-/*
-  if (getStatus()!=ATTACHED)
-     return 0;
-*/
-  //gsm._tf.setTimeout(_GSM_CONNECTION_TOUT_);
+//
+//  if (getStatus()!=ATTACHED)
+//     return 0;
+//
+//gsm._tf.setTimeout(_GSM_CONNECTION_TOUT_);
 
-  //_cell.flush();
+//_cell.flush();
 
   // Set port
+
+    Serial.println("TCP CONNECTING");
   
   gsm.SimpleWrite("AT+CIPSERVER=1,");
   gsm.SimpleWriteln(port);
-/*
-  switch(gsm.WaitResp(5000, 50, "OK")){
-	case RX_TMOUT_ERR: 
-		return 0;
-	break;
-	case RX_FINISHED_STR_NOT_RECV: 
-		return 0; 
-	break;
-  }
 
-  switch(gsm.WaitResp(5000, 50, "SERVER")){ //Try SERVER OK
-	case RX_TMOUT_ERR: 
-		return 0;
-	break;
-	case RX_FINISHED_STR_NOT_RECV: 
-		return 0; 
-	break;
-  }
-*/
-  //delay(200);  
+//  switch(gsm.WaitResp(5000, 50, "OK")){
+//	case RX_TMOUT_ERR: 
+//		return 0;
+//	break;
+//	case RX_FINISHED_STR_NOT_RECV: 
+//		return 0; 
+//	break;
+//  }
+//
+//  switch(gsm.WaitResp(5000, 50, "SERVER")){ //Try SERVER OK
+//	case RX_TMOUT_ERR: 
+//		return 0;
+//	break;
+//	case RX_FINISHED_STR_NOT_RECV: 
+//		return 0; 
+//	break;
+//  }
+        Serial.println("TCP CONNECTED");
 
-  return 1;
+  delay(200);
+
+  return 2;
 
 }
 

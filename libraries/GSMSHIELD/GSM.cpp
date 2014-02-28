@@ -17,13 +17,15 @@ based on QuectelM10 chip.
 #include "GSM.h"
 #include "WideTextFinder.h"
 
+
+
 //De-comment this two lines below if you have the
 //first version of GSM GPRS Shield
 //#define _GSM_TXPIN_ 4
 //#define _GSM_RXPIN_ 5
 
-
 // !!! PINS FOR COMUNICATION !!!
+
 //De-comment this two lines below if you have the
 //second version og GSM GPRS Shield
 #define _GSM_TXPIN_ 19
